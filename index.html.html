@@ -1,0 +1,1191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Campus Ride | Live Fleet Intelligence | Team BuildX</title>
+
+  <!-- Google Fonts, Leaflet Vector Engine & PeerJS Cloud CDN -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@500;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+  <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+
+  <style>
+    :root {
+      --bg: #070913;
+      --card-bg: rgba(15, 21, 37, 0.88);
+      --card-border: rgba(255, 255, 255, 0.08);
+      --accent: #6366f1;
+      --accent-glow: rgba(99, 102, 241, 0.4);
+      --accent-hover: #4f46e5;
+      --emerald: #10b981;
+      --emerald-glow: rgba(16, 185, 129, 0.35);
+      --amber: #f59e0b;
+      --rose: #f43f5e;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --mono: 'JetBrains Mono', monospace;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      min-height: 100vh;
+      overflow-x: hidden;
+      background-image: 
+        radial-gradient(circle at 10% 10%, rgba(99, 102, 241, 0.15) 0%, transparent 40%),
+        radial-gradient(circle at 90% 90%, rgba(16, 185, 129, 0.12) 0%, transparent 45%),
+        linear-gradient(rgba(255, 255, 255, 0.015) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.015) 1px, transparent 1px);
+      background-size: 100% 100%, 100% 100%, 32px 32px, 32px 32px;
+    }
+
+    .header {
+      position: sticky;
+      top: 0;
+      z-index: 2000;
+      background: rgba(7, 9, 19, 0.94);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--card-border);
+      padding: 12px 28px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .brand { display: flex; align-items: center; gap: 12px; }
+    .brand-icon {
+      width: 42px; height: 42px; border-radius: 12px;
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      display: grid; place-items: center; font-size: 22px;
+      box-shadow: 0 4px 18px var(--accent-glow);
+    }
+    .brand-text h1 { font-size: 17px; font-weight: 800; letter-spacing: -0.02em; }
+    .brand-text span { font-size: 11px; color: var(--text-muted); display: block; font-weight: 500; }
+
+    .nav-tabs {
+      display: flex; background: rgba(255, 255, 255, 0.04);
+      padding: 4px; border-radius: 12px; border: 1px solid var(--card-border); gap: 4px;
+    }
+
+    .nav-btn {
+      background: transparent; border: none; color: var(--text-muted);
+      padding: 8px 16px; border-radius: 9px; font-size: 13px; font-weight: 700;
+      cursor: pointer; transition: all 0.2s ease; display: flex; align-items: center; gap: 6px;
+      white-space: nowrap; position: relative;
+    }
+
+    .nav-btn.active {
+      background: var(--accent); color: #fff; box-shadow: 0 4px 14px var(--accent-glow);
+    }
+
+    .request-badge-pill {
+      background: var(--amber); color: #000; font-size: 10px; font-weight: 800;
+      padding: 2px 7px; border-radius: 10px; margin-left: 4px; display: none;
+      animation: pulseAlert 1.2s infinite;
+    }
+    @keyframes pulseAlert { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.15); } }
+
+    .container {
+      max-width: 1440px; margin: 0 auto; padding: 20px; display: grid; gap: 18px;
+    }
+
+    .view-section { display: none; animation: tabFadeIn 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+    .view-section.active { display: grid; }
+    @keyframes tabFadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+
+    .card {
+      background: var(--card-bg); border: 1px solid var(--card-border);
+      border-radius: 18px; padding: 20px; backdrop-filter: blur(16px);
+      box-shadow: 0 12px 36px rgba(0, 0, 0, 0.35);
+    }
+
+    .student-layout { grid-template-columns: 400px 1fr; gap: 20px; align-items: start; }
+    .admin-layout { grid-template-columns: 1fr; gap: 18px; }
+
+    .panel-heading {
+      font-size: 17px; font-weight: 800; margin-bottom: 14px;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+
+    .status-tag {
+      font-size: 10px; font-weight: 800; text-transform: uppercase;
+      letter-spacing: 0.05em; padding: 4px 10px; border-radius: 20px;
+      background: rgba(16, 185, 129, 0.15); color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+    .status-tag.waiting {
+      background: rgba(245, 158, 11, 0.15); color: #fbbf24;
+      border-color: rgba(245, 158, 11, 0.3);
+    }
+
+    .form-group { margin-bottom: 14px; }
+    .form-group label {
+      display: block; font-size: 10px; font-weight: 700; letter-spacing: 0.08em;
+      text-transform: uppercase; color: var(--text-muted); margin-bottom: 6px;
+    }
+
+    .select-input, .text-input {
+      width: 100%; background: rgba(9, 13, 24, 0.85); border: 1px solid var(--card-border);
+      color: var(--text); padding: 11px 14px; border-radius: 11px; font-size: 13px;
+      font-weight: 600; outline: none; transition: all 0.2s ease;
+    }
+    .select-input:focus, .text-input:focus {
+      border-color: var(--accent); box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+    }
+
+    .pair-box {
+      background: linear-gradient(135deg, rgba(99, 102, 241, 0.15), rgba(139, 92, 246, 0.1));
+      border: 1px dashed rgba(99, 102, 241, 0.5);
+      border-radius: 14px;
+      padding: 16px;
+      text-align: center;
+      margin: 14px 0;
+    }
+    .pair-code-display {
+      font-family: var(--mono);
+      font-size: 32px;
+      font-weight: 800;
+      color: #a5b4fc;
+      letter-spacing: 8px;
+      margin: 8px 0;
+      user-select: all;
+    }
+
+    .telemetry-deck {
+      display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin: 12px 0;
+      background: rgba(9, 13, 24, 0.7); border: 1px solid var(--card-border);
+      padding: 12px; border-radius: 14px;
+    }
+    .telemetry-cell small {
+      display: block; font-size: 9px; font-weight: 700; color: var(--text-muted);
+      text-transform: uppercase; font-family: var(--mono);
+    }
+    .telemetry-cell strong {
+      display: block; font-size: 12px; font-family: var(--mono); color: #38bdf8; margin-top: 2px;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+
+    .metrics-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 14px 0; }
+    .metric-box {
+      background: rgba(255, 255, 255, 0.03); border: 1px solid var(--card-border);
+      padding: 10px 8px; border-radius: 12px; text-align: center;
+    }
+    .metric-box span { display: block; font-size: 9px; font-weight: 700; text-transform: uppercase; color: var(--text-muted); }
+    .metric-box strong { display: block; font-size: 13px; font-weight: 800; margin-top: 4px; color: #fff; }
+
+    .driver-card {
+      background: rgba(255, 255, 255, 0.025); border: 1px solid var(--card-border);
+      padding: 12px 14px; border-radius: 14px; margin-bottom: 14px;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .driver-meta small { font-size: 10px; color: var(--text-muted); text-transform: uppercase; font-weight: 700; display: block; }
+    .driver-meta strong { font-size: 13px; font-weight: 700; display: block; margin-top: 2px; }
+    .driver-meta span { font-size: 11px; color: var(--text-muted); font-family: var(--mono); }
+
+    .map-container {
+      height: 600px; border-radius: 18px; border: 1px solid var(--card-border);
+      overflow: hidden; position: relative; background: #0f1626; box-shadow: 0 14px 40px rgba(0, 0, 0, 0.45);
+    }
+    #liveMap, #adminLiveMap { width: 100%; height: 100%; z-index: 10; }
+
+    .map-telemetry {
+      position: absolute; top: 16px; right: 16px; z-index: 1000;
+      background: rgba(9, 13, 24, 0.88); border: 1px solid var(--card-border);
+      backdrop-filter: blur(10px); padding: 8px 16px; border-radius: 30px;
+      font-size: 12px; font-weight: 700; display: flex; align-items: center; gap: 9px;
+    }
+    .pulse-dot {
+      width: 8px; height: 8px; border-radius: 50%; background: var(--emerald);
+      box-shadow: 0 0 10px var(--emerald); animation: pulseAnimation 1.6s infinite;
+    }
+    @keyframes pulseAnimation { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.35; transform: scale(1.3); } }
+
+    .bus-marker-wrapper {
+      position: relative; display: flex; flex-direction: column; align-items: center; transform: translate(-50%, -50%);
+    }
+    .bus-bubble {
+      background: linear-gradient(135deg, #4f46e5, #7c3aed); color: white; padding: 6px 10px;
+      border-radius: 20px; font-size: 11px; font-weight: 800; display: flex; align-items: center; gap: 5px;
+      box-shadow: 0 6px 20px rgba(79, 70, 229, 0.7), 0 0 0 2px #ffffff; white-space: nowrap;
+    }
+    .bus-pointer { width: 0; height: 0; border-left: 6px solid transparent; border-right: 6px solid transparent; border-top: 7px solid #7c3aed; margin-top: -1px; }
+
+    .timeline-wrapper {
+      margin-top: 14px; display: flex; flex-direction: column; max-height: 200px; overflow-y: auto; padding-right: 6px;
+    }
+    .timeline-wrapper::-webkit-scrollbar { width: 4px; }
+    .timeline-wrapper::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 4px; }
+
+    .stop-row {
+      display: grid; grid-template-columns: 22px 1fr auto; gap: 10px; min-height: 44px;
+      cursor: pointer; padding: 4px 6px; border-radius: 8px; transition: background 0.15s ease;
+    }
+    .stop-row:hover { background: rgba(255, 255, 255, 0.04); }
+    .stop-line { position: relative; display: flex; justify-content: center; }
+    .stop-line::after { content: ''; position: absolute; top: 14px; bottom: -4px; width: 2px; background: rgba(255, 255, 255, 0.1); }
+    .stop-row:last-child .stop-line::after { display: none; }
+    .stop-dot { width: 9px; height: 9px; border-radius: 50%; background: #475569; border: 2px solid var(--bg); z-index: 1; margin-top: 4px; }
+    .stop-row.passed .stop-dot { background: var(--emerald); box-shadow: 0 0 8px var(--emerald); }
+    .stop-row.active .stop-dot { background: var(--accent); box-shadow: 0 0 10px var(--accent); }
+    .stop-name strong { display: block; font-size: 12px; }
+    .stop-name small { color: var(--text-muted); font-size: 10px; }
+    .stop-time { font-size: 11px; color: var(--text-muted); font-family: var(--mono); font-weight: 600; }
+
+    .btn {
+      width: 100%; display: inline-flex; align-items: center; justify-content: center;
+      gap: 8px; padding: 12px 16px; font-size: 13px; font-weight: 700; border-radius: 12px;
+      border: none; cursor: pointer; transition: all 0.2s ease; text-decoration: none;
+    }
+    .btn-primary { background: var(--accent); color: white; box-shadow: 0 4px 16px var(--accent-glow); }
+    .btn-primary:hover { background: var(--accent-hover); }
+    .btn-emerald { background: var(--emerald); color: white; box-shadow: 0 4px 16px var(--emerald-glow); }
+    .btn-emerald:hover { background: #059669; }
+    .btn-amber { background: var(--amber); color: #000; box-shadow: 0 4px 16px rgba(245, 158, 11, 0.3); }
+    .btn-amber:hover { background: #d97706; }
+    .btn-rose { background: var(--rose); color: white; }
+    .btn-outline { background: rgba(255, 255, 255, 0.04); color: var(--text); border: 1px solid var(--card-border); }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .requests-deck {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 12px; margin-bottom: 20px;
+    }
+    .request-card {
+      background: rgba(245, 158, 11, 0.06); border: 1px solid rgba(245, 158, 11, 0.3);
+      padding: 14px; border-radius: 14px; display: flex; flex-direction: column; gap: 8px;
+    }
+    .request-card-header { display: flex; justify-content: space-between; align-items: center; }
+    .request-actions { display: flex; gap: 8px; margin-top: 6px; }
+
+    .table-box { overflow-x: auto; margin-top: 14px; }
+    table { width: 100%; border-collapse: collapse; text-align: left; }
+    th { padding: 12px 14px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); border-bottom: 1px solid var(--card-border); }
+    td { padding: 13px 14px; font-size: 13px; border-bottom: 1px solid rgba(255, 255, 255, 0.03); }
+    .fleet-badge {
+      display: inline-block; padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 700;
+      background: rgba(16, 185, 129, 0.15); color: #34d399;
+    }
+    .fleet-badge.stopped { background: rgba(244, 63, 94, 0.15); color: #f43f5e; }
+
+    .driver-container { max-width: 580px; margin: 10px auto; }
+    .console-header {
+      display: flex; align-items: center; gap: 14px; padding: 16px;
+      background: rgba(255, 255, 255, 0.03); border-radius: 14px; border: 1px solid var(--card-border); margin-bottom: 20px;
+    }
+
+    @media (max-width: 950px) {
+      .header { flex-direction: column; align-items: flex-start; padding: 12px 16px; }
+      .nav-tabs { width: 100%; justify-content: space-between; }
+      .nav-btn { flex: 1; justify-content: center; padding: 8px 6px; font-size: 11px; }
+      .student-layout { grid-template-columns: 1fr; gap: 16px; }
+      .container { padding: 12px; }
+      .map-container { height: 380px; }
+    }
+  </style>
+</head>
+<body>
+
+  <header class="header">
+    <div class="brand">
+      <div class="brand-icon">🚌</div>
+      <div class="brand-text">
+        <h1>Campus Ride</h1>
+        <span>JIET Autonomous • Team BuildX</span>
+      </div>
+    </div>
+
+    <div class="nav-tabs">
+      <button class="nav-btn active" onclick="switchDashboard('student')">🎓 Student</button>
+      <button class="nav-btn" onclick="switchDashboard('driver')">🧑‍✈️ Driver GPS</button>
+      <button class="nav-btn" onclick="switchDashboard('admin')">
+        🏢 Fleet Admin
+        <span class="request-badge-pill" id="adminPendingBadge">1 REQ</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+
+    <!-- 1. STUDENT VIEW -->
+    <div id="student-view" class="view-section student-layout active">
+      <div class="card">
+        <div class="panel-heading">
+          <span>Track Campus Shuttle</span>
+          <span class="status-tag" id="busRouteStatusTag">Route Active</span>
+        </div>
+        
+        <div class="form-group">
+          <label for="busSelectDropdown">Select Campus Route</label>
+          <select id="busSelectDropdown" class="select-input" onchange="handleBusSelection()">
+            <option value="TN01">TN01 · Bhaskar Chouraha ➔ JIET</option>
+            <option value="TN03">TN03 · Jodhpur Resort ➔ JIET</option>
+            <option value="TN05">TN05 · 16 Sec CHB ➔ JIET</option>
+            <option value="TN06">TN06 · Arihant Adita ➔ JIET</option>
+            <option value="TN07">TN07 · Pali/Rohat ➔ JIET</option>
+            <option value="TN08">TN08 · Boranada ➔ JIET</option>
+            <option value="TN09">TN09 · Nandri ➔ JIET</option>
+            <option value="TN10">TN10 · Madhuban ➔ JIET</option>
+          </select>
+        </div>
+
+        <!-- Laptop Sync Input Box -->
+        <div class="pair-box" style="padding: 12px; margin-bottom: 12px; text-align: left;">
+          <small style="font-size: 10px; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Connect Phone Pair Code</small>
+          <div style="display: flex; gap: 8px; margin-top: 6px;">
+            <input type="text" id="laptopInputPairCode" placeholder="Enter Phone 4-digit Code" maxlength="6" class="text-input" style="font-family: var(--mono); text-transform: uppercase; font-weight: 700;">
+            <button class="btn btn-primary" style="width: auto; padding: 0 16px;" onclick="connectLaptopToPhone()">Connect</button>
+          </div>
+          <span id="laptopSyncStatusText" style="display: block; font-size: 11px; color: var(--text-muted); margin-top: 6px;">Status: Standby mode</span>
+        </div>
+
+        <!-- Telemetry Strip -->
+        <div class="telemetry-deck">
+          <div class="telemetry-cell">
+            <small>LATITUDE</small>
+            <strong id="telemLat">26.273800</strong>
+          </div>
+          <div class="telemetry-cell">
+            <small>LONGITUDE</small>
+            <strong id="telemLng">73.018900</strong>
+          </div>
+          <div class="telemetry-cell">
+            <small>ACCURACY</small>
+            <strong id="telemAcc">±3.5 m</strong>
+          </div>
+          <div class="telemetry-cell">
+            <small>UPDATED</small>
+            <strong id="telemTime">Just now</strong>
+          </div>
+        </div>
+
+        <div class="metrics-grid">
+          <div class="metric-box">
+            <span>Next Arrival</span>
+            <strong id="metricArrival">07:45 AM</strong>
+          </div>
+          <div class="metric-box">
+            <span>Current Speed</span>
+            <strong id="metricSpeed">0 km/h</strong>
+          </div>
+          <div class="metric-box">
+            <span>Next Target</span>
+            <strong id="metricNextStop">PWD Circle</strong>
+          </div>
+        </div>
+
+        <div class="driver-card">
+          <div class="driver-meta">
+            <small>Assigned Captain</small>
+            <strong id="driverNameLabel">Yasin Mohammed</strong>
+            <span id="driverPhoneLabel">+91 9001899052</span>
+          </div>
+          <a id="driverCallButton" href="tel:9001899052" class="btn btn-outline" style="width: auto; padding: 7px 14px; font-size: 12px;">📞 Call</a>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px;">
+          <a id="externalGoogleMapsUrl" href="#" target="_blank" class="btn btn-primary" style="font-size: 12px;">
+            🗺️ Open Live in Google Maps App ↗
+          </a>
+        </div>
+
+        <div class="panel-heading" style="font-size: 12px; margin-bottom: 6px;">
+          <span>Scheduled Route Stops</span>
+          <span style="font-size: 10px; color: var(--text-muted); font-weight: 500;">Click stop to focus</span>
+        </div>
+        <div class="timeline-wrapper" id="stopsTimelineHost"></div>
+      </div>
+
+      <div class="map-container">
+        <div class="map-telemetry">
+          <span class="pulse-dot"></span>
+          <span id="mapTelemetryText">ESRI Vector Fleet Tracking Online</span>
+        </div>
+        <div id="liveMap"></div>
+      </div>
+    </div>
+
+    <!-- 2. DRIVER CONSOLE VIEW -->
+    <div id="driver-view" class="view-section">
+      <div class="card driver-container">
+        <h2 style="font-size: 20px; font-weight: 800; margin-bottom: 6px;">Driver Trip Clearance & GPS Console</h2>
+        <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 18px;">
+          Har journey start karne se pehle Fleet Admin se clearance lein, fir Pair Code laptop par daalein.
+        </p>
+
+        <!-- Big Dedicated Pair Code Box on Driver Phone -->
+        <div class="pair-box">
+          <span style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Your Device Live Pair Code</span>
+          <div class="pair-code-display" id="phoneLivePairCodeText">----</div>
+          <small style="color: var(--text-muted); font-size: 11px;">Enter this code on your Laptop to see this phone's live GPS[cite: 8].</small>
+        </div>
+
+        <div class="console-header">
+          <div class="brand-icon" style="width: 38px; height: 38px; font-size: 18px;" id="driverStatusIcon">📡</div>
+          <div>
+            <strong id="driverConsoleGpsTitle" style="font-size: 14px; display: block;">Clearance Status: Idle / Not Cleared</strong>
+            <span id="driverConsoleCoords" style="font-size: 11px; color: var(--text-muted); font-family: var(--mono);">Awaiting admin authorization</span>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Selected Vehicle Fleet</label>
+          <select id="driverConsoleBusSelect" class="select-input" onchange="syncDriverSelection()">
+            <option value="TN01">Bus TN01 (RJ19PC9698)</option>
+            <option value="TN03">Bus TN03 (RJ19PC9697)</option>
+            <option value="TN05">Bus TN05 (RJ19PC9649)</option>
+            <option value="TN06">Bus TN06 (RJ19PC9650)</option>
+          </select>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 20px;">
+          <button class="btn btn-amber" id="btnRequestClearance" onclick="requestRouteClearance()">
+            📢 Request Admin Route Clearance
+          </button>
+
+          <button class="btn btn-emerald" id="btnToggleDeviceGps" onclick="toggleDeviceGpsTracking()" disabled>
+            📲 Start Phone GPS & Broadcast to Laptop
+          </button>
+
+          <button class="btn btn-primary" id="btnToggleSimJourney" onclick="triggerAutoMovingJourney()" disabled>
+            🚀 Start Live Moving Journey (Auto Direction Nav)
+          </button>
+        </div>
+
+        <p style="margin-top: 16px; font-size: 11px; color: var(--text-muted); text-align: center; line-height: 1.5;">
+          💡 <strong>Hackathon Flow:</strong> <em>"Request Route Clearance"</em> ➔ <strong>Fleet Admin</strong> approve karega ➔ <em>"Start Phone GPS"</em> dabayein ➔ Laptop par Pair Code daalein.
+        </p>
+      </div>
+    </div>
+
+    <!-- 3. FLEET ADMIN COMMAND CENTER -->
+    <div id="admin-view" class="view-section admin-layout">
+      <div class="card" id="adminClearanceQueueBox">
+        <div class="panel-heading">
+          <span>🚨 Live Driver Trip Clearance Requests</span>
+          <span class="status-tag waiting" id="pendingRequestCountTag">0 Requests Pending</span>
+        </div>
+        <div class="requests-deck" id="adminRequestsDeck"></div>
+      </div>
+
+      <div class="card">
+        <div class="panel-heading">
+          <span>📡 Central Fleet Radar & Live Vehicle Tracking</span>
+          <span class="status-tag">Live Command Radar</span>
+        </div>
+        <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 14px;">
+          Map par kisi bhi bus ka live position, moving speed aur coordinate lock dekhein.
+        </p>
+
+        <div class="map-container" style="height: 480px;">
+          <div id="adminLiveMap"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="panel-heading">
+          <span>JIET Fleet Dispatch Roster</span>
+          <span class="fleet-badge">8 Vehicles Registered</span>
+        </div>
+        <div class="table-box">
+          <table>
+            <thead>
+              <tr>
+                <th>Route ID</th>
+                <th>Bus Registration</th>
+                <th>Driver Name</th>
+                <th>Contact</th>
+                <th>Next Stop</th>
+                <th>ETA</th>
+                <th>Telemetry / Action</th>
+              </tr>
+            </thead>
+            <tbody id="fleetTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+  <script>
+    "use strict";
+
+    const JIET_CAMPUS_DEST = { name: "JIET Campus (Mogra)", lat: 26.1306, lng: 73.0384 };
+
+    const routesData = {
+      TN01: {
+        vehicle: "RJ19PC9698",
+        driver: "Yasin Mohammed",
+        id: "40009",
+        phone: "9001899052",
+        arrival: "07:45 AM",
+        title: "Bhaskar Chouraha → JIET Campus",
+        cleared: false,
+        status: "At Origin (Waiting Clearance)",
+        stops: [
+          { name: "Bhaskar Chouraha (Origin)", time: "07:13 AM", lat: 26.2738, lng: 73.0189 },
+          { name: "PWD Circle", time: "07:15 AM", lat: 26.2625, lng: 73.0234 },
+          { name: "Police Chowki Bheruji", time: "07:17 AM", lat: 26.2480, lng: 73.0270 },
+          { name: "Pilli Tanki", time: "07:18 AM", lat: 26.2395, lng: 73.0310 },
+          { name: "Krishna Nagar Main Rd", time: "07:22 AM", lat: 26.2220, lng: 73.0375 },
+          { name: "Junagarh Balaji Jhalamand", time: "07:25 AM", lat: 26.2030, lng: 73.0450 },
+          { name: "JIET Campus (Mogra)", time: "07:45 AM", lat: 26.1306, lng: 73.0384 }
+        ]
+      },
+      TN03: {
+        vehicle: "RJ19PC9697",
+        driver: "Raseed Khan",
+        id: "40162",
+        phone: "7023061021",
+        arrival: "07:45 AM",
+        title: "Jodhpur Resort → JIET Campus",
+        cleared: false,
+        status: "At Origin (Waiting Clearance)",
+        stops: [
+          { name: "Jodhpur Resort", time: "07:05 AM", lat: 26.2941, lng: 72.9812 },
+          { name: "Rajbagh Dalibai", time: "07:07 AM", lat: 26.2810, lng: 72.9890 },
+          { name: "Hey Ram Chopasni", time: "07:09 AM", lat: 26.2680, lng: 72.9980 },
+          { name: "BR Birla School", time: "07:11 AM", lat: 26.2550, lng: 73.0070 },
+          { name: "Ram Nagar", time: "07:12 AM", lat: 26.2420, lng: 73.0150 },
+          { name: "PF Office", time: "07:13 AM", lat: 26.2310, lng: 73.0220 },
+          { name: "Shubham K Mart", time: "07:14 AM", lat: 26.2180, lng: 73.0310 },
+          { name: "JIET Campus", time: "07:45 AM", lat: 26.1306, lng: 73.0384 }
+        ]
+      },
+      TN05: {
+        vehicle: "RJ19PC9649",
+        driver: "Sharwan Kumar",
+        id: "40107",
+        phone: "9413959274",
+        arrival: "07:45 AM",
+        title: "16 Sec CHB → JIET Campus",
+        cleared: false,
+        status: "At Origin (Waiting Clearance)",
+        stops: [
+          { name: "16 Sec CHB Samudaik", time: "07:05 AM", lat: 26.2880, lng: 73.0090 },
+          { name: "Omni Shopee", time: "07:07 AM", lat: 26.2820, lng: 73.0110 },
+          { name: "12 Sector CHB", time: "07:13 AM", lat: 26.2750, lng: 73.0150 },
+          { name: "10 Sec Central Academy", time: "07:15 AM", lat: 26.2600, lng: 73.0220 },
+          { name: "JIET Campus", time: "07:45 AM", lat: 26.1306, lng: 73.0384 }
+        ]
+      },
+      TN06: {
+        vehicle: "RJ19PC9650",
+        driver: "Sarfudeen",
+        id: "40084",
+        phone: "7742748661",
+        arrival: "07:45 AM",
+        title: "Arihant Adita → Pal → JIET",
+        cleared: false,
+        status: "At Origin (Waiting Clearance)",
+        stops: [
+          { name: "Arihant Adita", time: "07:05 AM", lat: 26.2350, lng: 72.9850 },
+          { name: "Gangana Fanta", time: "07:07 AM", lat: 26.2280, lng: 72.9950 },
+          { name: "Pal Balaji", time: "07:14 AM", lat: 26.2200, lng: 73.0120 },
+          { name: "JIET Campus", time: "07:45 AM", lat: 26.1306, lng: 73.0384 }
+        ]
+      },
+      TN07: { vehicle: "RJ19PC8259", driver: "Shyam Lal", id: "40168", phone: "9982882251", arrival: "07:45 AM", title: "Punayata Road (Pali) → JIET", cleared: false, status: "Standby", stops: [{ name: "Pali Junction", time: "06:10 AM", lat: 25.7781, lng: 73.3311 }, { name: "Rohat", time: "07:10 AM", lat: 25.9667, lng: 73.1333 }, { name: "JIET Campus", time: "07:45 AM", lat: 26.1306, lng: 73.0384 }] },
+      TN08: { vehicle: "RJ19PC4558", driver: "Kan Singh Bhati", id: "40109", phone: "9829955431", arrival: "07:45 AM", title: "Boranada → Basni → JIET", cleared: false, status: "Standby", stops: [{ name: "Boranada Jhanwar", time: "06:55 AM", lat: 26.1950, lng: 72.9450 }, { name: "Basni Medipulse", time: "07:17 AM", lat: 26.2300, lng: 73.0200 }, { name: "JIET Campus", time: "07:45 AM", lat: 26.1306, lng: 73.0384 }] },
+      TN09: { vehicle: "RJ19PC4553", driver: "Anop Singh Khichi", id: "40098", phone: "9509616654", arrival: "07:45 AM", title: "Nandri Road → Ratanada → JIET", cleared: false, status: "Standby", stops: [{ name: "Nandri Road", time: "06:55 AM", lat: 26.3150, lng: 73.0850 }, { name: "Bhati Circle", time: "07:14 AM", lat: 26.2750, lng: 73.0320 }, { name: "JIET Campus", time: "07:45 AM", lat: 26.1306, lng: 73.0384 }] },
+      TN10: { vehicle: "RJ19PC4554", driver: "Prakash", id: "40105", phone: "9983276514", arrival: "07:45 AM", title: "Madhuban → Kudi → JIET", cleared: false, status: "Standby", stops: [{ name: "Madhuban Sabji Mandi", time: "07:10 AM", lat: 26.2250, lng: 73.0180 }, { name: "Kudi Sector 8", time: "07:21 AM", lat: 26.2080, lng: 73.0340 }, { name: "JIET Campus", time: "07:45 AM", lat: 26.1306, lng: 73.0384 }] }
+    };
+
+    let selectedRouteKey = "TN01";
+    let pendingClearanceRequests = [];
+
+    let studentMap = null;
+    let studentBusMarker = null;
+    let studentRoutePolyline = null;
+    let studentStopsGroup = null;
+
+    let adminMap = null;
+    let adminBusMarkers = {};
+
+    let isMovingSimulation = false;
+    let movingTimer = null;
+    let currentWaypointIndex = 0;
+
+    let isDeviceGpsActive = false;
+    let deviceWatchId = null;
+
+    // --- P2P WebRTC Pairing Engine ---
+    let myPeerId = "";
+    let peer = null;
+    let activeConnection = null;
+
+    function generateEasyPairId() {
+      const chars = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
+      let res = "";
+      for (let i = 0; i < 4; i++) {
+        res += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+      return res;
+    }
+
+    function initPeerEngine() {
+      const randomCode = generateEasyPairId();
+      myPeerId = `CR-${randomCode}`;
+      
+      peer = new Peer(myPeerId);
+
+      peer.on('open', () => {
+        document.getElementById('phoneLivePairCodeText').textContent = randomCode;
+      });
+
+      peer.on('connection', (conn) => {
+        activeConnection = conn;
+        document.getElementById('driverConsoleCoords').textContent = "🟢 Synced with Laptop Live";
+        
+        activeConnection.on('data', (data) => {
+          handleIncomingLiveTelemetry(data);
+        });
+      });
+    }
+
+    function connectLaptopToPhone() {
+      const inputCode = document.getElementById('laptopInputPairCode').value.trim().toUpperCase();
+      const statusLabel = document.getElementById('laptopSyncStatusText');
+
+      if (!inputCode || inputCode.length < 4) {
+        alert("Please enter the 4-digit code shown on the phone's Driver Console!");
+        return;
+      }
+
+      const targetPeerId = `CR-${inputCode}`;
+      statusLabel.textContent = `Connecting to ${inputCode}...`;
+
+      const conn = peer.connect(targetPeerId);
+
+      conn.on('open', () => {
+        activeConnection = conn;
+        statusLabel.textContent = `🟢 Connected to Phone (${inputCode})`;
+        statusLabel.style.color = "#34d399";
+        alert(`Success! Laptop is now paired with Phone [${inputCode}]. Real-time coordinates will sync live.`);
+      });
+
+      conn.on('data', (packet) => {
+        handleIncomingLiveTelemetry(packet);
+      });
+
+      conn.on('error', () => {
+        statusLabel.textContent = "❌ Connection failed. Check code & retry.";
+        statusLabel.style.color = "#f43f5e";
+      });
+    }
+
+    function handleIncomingLiveTelemetry(data) {
+      if (!data || !data.lat || !data.lng) return;
+
+      const { route, lat, lng, speed, accuracy, time } = data;
+
+      document.getElementById('telemLat').textContent = Number(lat).toFixed(6);
+      document.getElementById('telemLng').textContent = Number(lng).toFixed(6);
+      document.getElementById('telemAcc').textContent = `±${Math.round(accuracy)} m`;
+      document.getElementById('telemTime').textContent = time;
+
+      document.getElementById('metricSpeed').textContent = `${speed} km/h`;
+      document.getElementById('mapTelemetryText').textContent = `Fleet GPS Locked: ${speed} km/h`;
+
+      if (studentBusMarker && route === selectedRouteKey) {
+        studentBusMarker.setLatLng([lat, lng]);
+        studentMap.panTo([lat, lng], { animate: true, duration: 0.8 });
+      }
+
+      if (adminBusMarkers[route]) {
+        adminBusMarkers[route].setLatLng([lat, lng]);
+      }
+    }
+
+    function broadcastLiveTelemetry(lat, lng, speed, accuracy) {
+      const payload = {
+        route: selectedRouteKey,
+        lat: lat,
+        lng: lng,
+        speed: speed,
+        accuracy: accuracy,
+        time: new Date().toLocaleTimeString()
+      };
+
+      handleIncomingLiveTelemetry(payload);
+
+      if (activeConnection && activeConnection.open) {
+        activeConnection.send(payload);
+      }
+    }
+
+    function createBusMarkerIcon(busName = "BUS LIVE") {
+      return L.divIcon({
+        className: 'custom-leaflet-bus',
+        html: `
+          <div class="bus-marker-wrapper">
+            <div class="bus-bubble">
+              <span style="font-size: 15px;">🚌</span>
+              <span>${busName}</span>
+            </div>
+            <div class="bus-pointer"></div>
+          </div>
+        `,
+        iconSize: [100, 48],
+        iconAnchor: [50, 42]
+      });
+    }
+
+    function createStopMarkerIcon(isDestination = false) {
+      return L.divIcon({
+        className: 'stop-pin-icon',
+        html: `
+          <div style="
+            width: ${isDestination ? '16px' : '12px'};
+            height: ${isDestination ? '16px' : '12px'};
+            border-radius: 50%;
+            background: ${isDestination ? '#10b981' : '#6366f1'};
+            border: 2px solid #ffffff;
+            box-shadow: 0 0 10px ${isDestination ? '#10b981' : '#6366f1'};
+          "></div>
+        `,
+        iconSize: [16, 16],
+        iconAnchor: [8, 8]
+      });
+    }
+
+    function initStudentMap() {
+      const route = routesData[selectedRouteKey];
+      const startPoint = route.stops[0];
+
+      studentMap = L.map('liveMap', { zoomControl: false, attributionControl: false }).setView([startPoint.lat, startPoint.lng], 13);
+      L.control.zoom({ position: 'bottomright' }).addTo(studentMap);
+
+      L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
+        maxZoom: 19
+      }).addTo(studentMap);
+
+      studentStopsGroup = L.layerGroup().addTo(studentMap);
+      drawStudentRoute();
+    }
+
+    function initAdminMap() {
+      if (adminMap) return;
+
+      adminMap = L.map('adminLiveMap', { zoomControl: false, attributionControl: false }).setView([26.22, 73.02], 12);
+      L.control.zoom({ position: 'bottomright' }).addTo(adminMap);
+
+      L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
+        maxZoom: 19
+      }).addTo(adminMap);
+
+      Object.entries(routesData).forEach(([routeKey, bus]) => {
+        const startPos = [bus.stops[0].lat, bus.stops[0].lng];
+        const marker = L.marker(startPos, {
+          icon: createBusMarkerIcon(`${routeKey} • ${bus.driver.split(" ")[0]}`)
+        }).bindPopup(`<b>${routeKey} (${bus.vehicle})</b><br>Driver: ${bus.driver}<br>Phone: ${bus.phone}<br>Status: ${bus.status}`).addTo(adminMap);
+
+        adminBusMarkers[routeKey] = marker;
+      });
+    }
+
+    function drawStudentRoute() {
+      const route = routesData[selectedRouteKey];
+      if (!route || !studentMap) return;
+
+      studentStopsGroup.clearLayers();
+      if (studentRoutePolyline) studentMap.removeLayer(studentRoutePolyline);
+
+      const latlngs = route.stops.map(s => [s.lat, s.lng]);
+
+      studentRoutePolyline = L.polyline(latlngs, {
+        color: '#6366f1',
+        weight: 6,
+        opacity: 0.85
+      }).addTo(studentMap);
+
+      route.stops.forEach((stop, index) => {
+        const isLast = (index === route.stops.length - 1);
+        const marker = L.marker([stop.lat, stop.lng], {
+          icon: createStopMarkerIcon(isLast)
+        }).bindPopup(`<b>${stop.name}</b><br>ETA: ${stop.time}`);
+        studentStopsGroup.addLayer(marker);
+      });
+
+      const initialPos = [latlngs[0][0], latlngs[0][1]];
+      if (!studentBusMarker) {
+        studentBusMarker = L.marker(initialPos, {
+          icon: createBusMarkerIcon(`${selectedRouteKey} LIVE`),
+          zIndexOffset: 1500
+        }).addTo(studentMap);
+      } else {
+        studentBusMarker.setLatLng(initialPos);
+        studentBusMarker.setIcon(createBusMarkerIcon(`${selectedRouteKey} LIVE`));
+      }
+
+      studentMap.fitBounds(studentRoutePolyline.getBounds(), { padding: [50, 50] });
+      updateStudentUI(route);
+    }
+
+    function updateStudentUI(route) {
+      document.getElementById('metricArrival').textContent = route.arrival;
+      document.getElementById('driverNameLabel').textContent = route.driver;
+      document.getElementById('driverPhoneLabel').textContent = `+91 ${route.phone}`;
+      document.getElementById('driverCallButton').href = `tel:${route.phone}`;
+      document.getElementById('metricNextStop').textContent = route.stops[1] ? route.stops[1].name : "JIET Campus";
+
+      const origin = route.stops[0];
+      const navAppLink = `https://www.google.com/maps/dir/?api=1&origin=${origin.lat},${origin.lng}&destination=${JIET_CAMPUS_DEST.lat},${JIET_CAMPUS_DEST.lng}&travelmode=driving`;
+      document.getElementById('externalGoogleMapsUrl').href = navAppLink;
+
+      const timelineHost = document.getElementById('stopsTimelineHost');
+      timelineHost.innerHTML = '';
+
+      route.stops.forEach((stop, idx) => {
+        const item = document.createElement('div');
+        item.className = `stop-row ${idx === 0 ? 'passed' : idx === 1 ? 'active' : ''}`;
+        item.onclick = () => {
+          studentMap.flyTo([stop.lat, stop.lng], 16);
+          document.getElementById('metricNextStop').textContent = stop.name;
+        };
+        item.innerHTML = `
+          <div class="stop-line"><div class="stop-dot"></div></div>
+          <div class="stop-name">
+            <strong>${stop.name}</strong>
+            <small>${idx === 0 ? 'Route Origin' : idx === route.stops.length - 1 ? 'Destination Campus' : 'Scheduled Stop'}</small>
+          </div>
+          <div class="stop-time">${stop.time}</div>
+        `;
+        timelineHost.appendChild(item);
+      });
+    }
+
+    function switchDashboard(tab) {
+      document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
+      document.querySelectorAll('.view-section').forEach(view => view.classList.remove('active'));
+
+      if (tab === 'student') {
+        document.querySelector('.nav-btn:nth-child(1)').classList.add('active');
+        document.getElementById('student-view').classList.add('active');
+        setTimeout(() => studentMap && studentMap.invalidateSize(), 200);
+      } else if (tab === 'driver') {
+        document.querySelector('.nav-btn:nth-child(2)').classList.add('active');
+        document.getElementById('driver-view').classList.add('active');
+      } else if (tab === 'admin') {
+        document.querySelector('.nav-btn:nth-child(3)').classList.add('active');
+        document.getElementById('admin-view').classList.add('active');
+        setTimeout(() => {
+          initAdminMap();
+          adminMap.invalidateSize();
+          renderAdminClearanceDeck();
+          populateAdminTable();
+        }, 200);
+      }
+    }
+
+    function requestRouteClearance() {
+      const routeKey = selectedRouteKey;
+      const bus = routesData[routeKey];
+
+      if (bus.cleared) {
+        alert(`${routeKey} is already cleared and active!`);
+        return;
+      }
+
+      if (!pendingClearanceRequests.includes(routeKey)) {
+        pendingClearanceRequests.push(routeKey);
+      }
+
+      document.getElementById('btnRequestClearance').textContent = "⏳ Clearance Request Pending...";
+      document.getElementById('btnRequestClearance').disabled = true;
+      document.getElementById('driverConsoleGpsTitle').textContent = "Clearance: Pending Admin Approval";
+      document.getElementById('driverConsoleCoords').textContent = "Request logged in Dispatch Queue";
+
+      updateAdminPendingBadge();
+      alert(`Clearance request for ${routeKey} (${bus.driver}) sent to Fleet Admin! Open Fleet Admin tab to approve.`);
+      switchDashboard('admin');
+    }
+
+    function updateAdminPendingBadge() {
+      const badge = document.getElementById('adminPendingBadge');
+      const countTag = document.getElementById('pendingRequestCountTag');
+
+      if (pendingClearanceRequests.length > 0) {
+        badge.style.display = 'inline-block';
+        badge.textContent = `${pendingClearanceRequests.length} REQ`;
+        if (countTag) countTag.textContent = `${pendingClearanceRequests.length} Requests Pending`;
+      } else {
+        badge.style.display = 'none';
+        if (countTag) countTag.textContent = `0 Requests Pending`;
+      }
+    }
+
+    function renderAdminClearanceDeck() {
+      const deck = document.getElementById('adminRequestsDeck');
+      deck.innerHTML = '';
+
+      if (pendingClearanceRequests.length === 0) {
+        deck.innerHTML = `<div style="font-size: 13px; color: var(--text-muted); padding: 12px;">✅ No pending departure requests. All buses operating normally.</div>`;
+        return;
+      }
+
+      pendingClearanceRequests.forEach((routeKey) => {
+        const bus = routesData[routeKey];
+        const card = document.createElement('div');
+        card.className = 'request-card';
+        card.innerHTML = `
+          <div class="request-card-header">
+            <strong style="color: #fbbf24; font-size: 14px;">🚨 Request: ${routeKey} (${bus.vehicle})</strong>
+            <span style="font-size: 10px; font-weight: 700; color: var(--text-muted);">${new Date().toLocaleTimeString()}</span>
+          </div>
+          <div style="font-size: 12px; color: #e2e8f0;">
+            Captain: <strong>${bus.driver}</strong> (${bus.phone})<br>
+            Route: ${bus.title}
+          </div>
+          <div class="request-actions">
+            <button class="btn btn-emerald" style="padding: 7px 12px; font-size: 11px;" onclick="approveRouteClearance('${routeKey}')">
+              ✅ Approve & Clear Route
+            </button>
+            <button class="btn btn-rose" style="padding: 7px 12px; font-size: 11px; width: auto;" onclick="rejectRouteClearance('${routeKey}')">
+              ✖ Reject
+            </button>
+          </div>
+        `;
+        deck.appendChild(card);
+      });
+    }
+
+    function approveRouteClearance(routeKey) {
+      routesData[routeKey].cleared = true;
+      routesData[routeKey].status = "Cleared & Ready to Roll";
+      pendingClearanceRequests = pendingClearanceRequests.filter(k => k !== routeKey);
+
+      updateAdminPendingBadge();
+      renderAdminClearanceDeck();
+      populateAdminTable();
+
+      if (routeKey === selectedRouteKey) {
+        document.getElementById('btnToggleSimJourney').disabled = false;
+        document.getElementById('btnToggleDeviceGps').disabled = false;
+        document.getElementById('btnRequestClearance').textContent = "✅ Route Cleared by Admin";
+        document.getElementById('driverConsoleGpsTitle').textContent = "Clearance: Approved! Ready to Start";
+        document.getElementById('driverStatusIcon').textContent = "🚦";
+        document.getElementById('busRouteStatusTag').textContent = "Cleared by Admin";
+      }
+
+      alert(`Route ${routeKey} cleared successfully! Now start phone GPS.`);
+    }
+
+    function rejectRouteClearance(routeKey) {
+      pendingClearanceRequests = pendingClearanceRequests.filter(k => k !== routeKey);
+      updateAdminPendingBadge();
+      renderAdminClearanceDeck();
+
+      if (routeKey === selectedRouteKey) {
+        document.getElementById('btnRequestClearance').disabled = false;
+        document.getElementById('btnRequestClearance').textContent = "📢 Request Admin Route Clearance";
+        document.getElementById('driverConsoleGpsTitle').textContent = "Clearance: Rejected by Admin";
+      }
+    }
+
+    // 4. Moving Journey Simulation (Dynamic Real Speed Added)
+    function triggerAutoMovingJourney() {
+      const bus = routesData[selectedRouteKey];
+      if (!bus.cleared) {
+        alert("Pehle Admin se Route Clearance lein!");
+        return;
+      }
+
+      const simBtn = document.getElementById('btnToggleSimJourney');
+      const gpsTitle = document.getElementById('driverConsoleGpsTitle');
+
+      if (isMovingSimulation) {
+        clearInterval(movingTimer);
+        isMovingSimulation = false;
+        simBtn.textContent = "🚀 Start Live Moving Journey (Auto Direction Nav)";
+        simBtn.className = "btn btn-primary";
+        gpsTitle.textContent = "Journey Status: Paused";
+        document.getElementById('mapTelemetryText').textContent = "Vehicle Navigation Paused";
+        document.getElementById('metricSpeed').textContent = "0 km/h";
+        bus.status = "In Transit (Paused)";
+        populateAdminTable();
+        return;
+      }
+
+      if (isDeviceGpsActive) toggleDeviceGpsTracking();
+
+      isMovingSimulation = true;
+      simBtn.textContent = "■ Pause Live Journey";
+      simBtn.className = "btn btn-outline";
+      gpsTitle.textContent = "Journey Active: Broadcasting Live Moving GPS";
+      bus.status = "In Transit (En Route to JIET)";
+
+      const stops = bus.stops;
+      currentWaypointIndex = 0;
+
+      switchDashboard('student');
+
+      movingTimer = setInterval(() => {
+        if (currentWaypointIndex >= stops.length - 1) {
+          currentWaypointIndex = 0;
+        }
+
+        const currentStop = stops[currentWaypointIndex];
+        const nextStop = stops[currentWaypointIndex + 1];
+
+        const movingLat = currentStop.lat + (nextStop.lat - currentStop.lat) * 0.55;
+        const movingLng = currentStop.lng + (nextStop.lng - currentStop.lng) * 0.55;
+        
+        // Realistic dynamic driving speed for simulation
+        const dynamicMovingSpeed = Math.floor(Math.random() * 12) + 36; // 36 to 48 km/h
+
+        broadcastLiveTelemetry(movingLat, movingLng, dynamicMovingSpeed, 2.5);
+
+        document.getElementById('metricNextStop').textContent = nextStop.name;
+
+        const rows = document.querySelectorAll('#stopsTimelineHost .stop-row');
+        rows.forEach((r, i) => {
+          r.className = `stop-row ${i <= currentWaypointIndex ? 'passed' : i === currentWaypointIndex + 1 ? 'active' : ''}`;
+        });
+
+        currentWaypointIndex++;
+      }, 3500);
+    }
+
+    // 5. Stationary Phone GPS Accuracy Logic
+    function toggleDeviceGpsTracking() {
+      const bus = routesData[selectedRouteKey];
+      if (!bus.cleared) {
+        alert("Pehle Admin se Route Clearance lein!");
+        return;
+      }
+
+      const btn = document.getElementById('btnToggleDeviceGps');
+      const gpsTitle = document.getElementById('driverConsoleGpsTitle');
+      const gpsCoords = document.getElementById('driverConsoleCoords');
+
+      if (isDeviceGpsActive) {
+        if (deviceWatchId !== null) navigator.geolocation.clearWatch(deviceWatchId);
+        isDeviceGpsActive = false;
+        btn.textContent = "📲 Start Phone GPS & Broadcast to Laptop";
+        btn.className = "btn btn-emerald";
+        gpsTitle.textContent = "GPS Transponder: Idle";
+        bus.status = "GPS Standby";
+        document.getElementById('metricSpeed').textContent = "0 km/h";
+        populateAdminTable();
+        return;
+      }
+
+      if (!navigator.geolocation) {
+        alert("Browser does not support geolocation.");
+        return;
+      }
+
+      if (isMovingSimulation) triggerAutoMovingJourney();
+
+      gpsTitle.textContent = "Connecting to Satellites & P2P Cloud...";
+      btn.textContent = "■ Stop Transmitting GPS";
+      btn.className = "btn btn-outline";
+
+      deviceWatchId = navigator.geolocation.watchPosition(
+        (position) => {
+          isDeviceGpsActive = true;
+          const { latitude, longitude, speed, accuracy } = position.coords;
+          
+          gpsTitle.textContent = "Satellite GPS: Broadcasting Live to Laptop";
+          gpsCoords.textContent = `Lat: ${latitude.toFixed(6)}, Lng: ${longitude.toFixed(6)}`;
+          bus.status = "Broadcasting Live GPS";
+
+          // Strict Stationary Filter: If stationary, strictly 0 km/h
+          let realSpeed = 0;
+          if (speed !== null && !isNaN(speed)) {
+            const kmh = speed * 3.6;
+            realSpeed = kmh > 2.0 ? Math.round(kmh) : 0;
+          } else {
+            realSpeed = 0;
+          }
+
+          broadcastLiveTelemetry(latitude, longitude, realSpeed, accuracy || 3.0);
+          populateAdminTable();
+        },
+        (err) => {
+          gpsTitle.textContent = "GPS Permission Denied";
+          alert("Please enable Location permission.");
+          toggleDeviceGpsTracking();
+        },
+        { enableHighAccuracy: true, maximumAge: 1000, timeout: 12000 }
+      );
+    }
+
+    function populateAdminTable() {
+      const tbody = document.getElementById('fleetTableBody');
+      tbody.innerHTML = '';
+
+      Object.entries(routesData).forEach(([code, bus]) => {
+        const tr = document.createElement('tr');
+        const isLive = bus.status.includes("Transit") || bus.status.includes("GPS");
+        tr.innerHTML = `
+          <td><strong>${code}</strong></td>
+          <td>${bus.vehicle}</td>
+          <td>${bus.driver}</td>
+          <td>+91 ${bus.phone}</td>
+          <td>${bus.stops[1] ? bus.stops[1].name : "JIET Campus"}</td>
+          <td>${bus.arrival}</td>
+          <td>
+            <div style="display: flex; gap: 8px; align-items: center;">
+              <span class="fleet-badge ${isLive ? '' : 'stopped'}">${bus.status}</span>
+              <button class="btn btn-outline" style="padding: 4px 8px; font-size: 11px; width: auto;" onclick="focusBusOnAdminMap('${code}')">
+                🎯 Radar
+              </button>
+            </div>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function focusBusOnAdminMap(routeKey) {
+      if (adminMap && adminBusMarkers[routeKey]) {
+        const marker = adminBusMarkers[routeKey];
+        adminMap.flyTo(marker.getLatLng(), 15);
+        marker.openPopup();
+      }
+    }
+
+    function handleBusSelection() {
+      selectedRouteKey = document.getElementById('busSelectDropdown').value;
+      document.getElementById('driverConsoleBusSelect').value = selectedRouteKey;
+      syncRouteState();
+    }
+
+    function syncDriverSelection() {
+      selectedRouteKey = document.getElementById('driverConsoleBusSelect').value;
+      document.getElementById('busSelectDropdown').value = selectedRouteKey;
+      syncRouteState();
+    }
+
+    function syncRouteState() {
+      if (isMovingSimulation) triggerAutoMovingJourney();
+      currentWaypointIndex = 0;
+      drawStudentRoute();
+
+      const bus = routesData[selectedRouteKey];
+      document.getElementById('btnToggleSimJourney').disabled = !bus.cleared;
+      document.getElementById('btnToggleDeviceGps').disabled = !bus.cleared;
+      document.getElementById('btnRequestClearance').disabled = bus.cleared;
+      document.getElementById('btnRequestClearance').textContent = bus.cleared ? "✅ Route Cleared by Admin" : "📢 Request Admin Route Clearance";
+      document.getElementById('driverConsoleGpsTitle').textContent = bus.cleared ? "Clearance: Approved! Ready to Start" : "Clearance: Awaiting Request";
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      initStudentMap();
+      renderAdminClearanceDeck();
+      populateAdminTable();
+      initPeerEngine();
+    });
+  </script>
+</body>
+</html>
